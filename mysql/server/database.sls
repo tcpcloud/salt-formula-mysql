@@ -9,6 +9,7 @@ mysql_database_{{ database_name }}:
   - connection_user: {{ mysql_connection_args.user }}
   - connection_pass: {{ mysql_connection_args.password }}
   - connection_charset: {{ mysql_connection_args.charset }}
+  - connection_host: {{ mysql_connection_args.host }}
 
 {%- for user in database.users %}
 
@@ -24,6 +25,7 @@ mysql_user_{{ user.name }}_{{ database_name }}_{{ user.host }}:
   - connection_user: {{ mysql_connection_args.user }}
   - connection_pass: {{ mysql_connection_args.password }}
   - connection_charset: {{ mysql_connection_args.charset }}
+  - connection_host: {{ mysql_connection_args.host }}
 
 mysql_grants_{{ user.name }}_{{ database_name }}_{{ user.host }}:
   mysql_grants.present:
@@ -34,6 +36,7 @@ mysql_grants_{{ user.name }}_{{ database_name }}_{{ user.host }}:
   - connection_user: {{ mysql_connection_args.user }}
   - connection_pass: {{ mysql_connection_args.password }}
   - connection_charset: {{ mysql_connection_args.charset }}
+  - connection_host: {{ mysql_connection_args.host }}
   - require:
     - mysql_user: mysql_user_{{ user.name }}_{{ database_name }}_{{ user.host }}
     - mysql_database: mysql_database_{{ database_name }}

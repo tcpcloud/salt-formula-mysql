@@ -30,9 +30,11 @@
 {%- if server.admin is defined %}
 {%- set mysql_connection_args = {'user': server.admin.user,
                                  'password': server.admin.password,
-                                 'charset': 'utf8'} %}
+                                 'charset': 'utf8',
+                                 'host: server.admin.host} %}
 {%- else %}
 {%- set mysql_connection_args = {'user': 'root',
                                  'password': '',
-                                 'charset': 'utf8'} %}
+                                 'charset': 'utf8',
+                                 'host: 'localhost'} %}
 {%- endif %}
