@@ -1,8 +1,8 @@
 {%- from "mysql/map.jinja" import server, mysql_connection_args with context %}
 
-{%- if not grains.get('noservices', False) %}
 {%- for database_name, database in server.get('database', {}).iteritems() %}
 
+{%- if not grains.get('noservices', False) %}
 mysql_database_{{ database_name }}:
   mysql_database.present:
   - name: {{ database_name }}
@@ -10,9 +10,10 @@ mysql_database_{{ database_name }}:
   - connection_user: {{ mysql_connection_args.user }}
   - connection_pass: {{ mysql_connection_args.password }}
   - connection_charset: {{ mysql_connection_args.charset }}
+{%- endif %}
 
 {%- for user in database.users %}
-
+{%- if not grains.get('noservices', False) %}
 mysql_user_{{ user.name }}_{{ database_name }}_{{ user.host }}:
   mysql_user.present:
   - host: '{{ user.host }}'
@@ -42,11 +43,10 @@ mysql_grants_{{ user.name }}_{{ database_name }}_{{ user.host }}:
   - require:
     - mysql_user: mysql_user_{{ user.name }}_{{ database_name }}_{{ user.host }}
     - mysql_database: mysql_database_{{ database_name }}
-
+{%- endif %}
 {%- endfor %}
 
 {%- if database.initial_data is defined %}
-
 /root/mysql/scripts/restore_{{ database_name }}.sh:
   file.managed:
   - source: salt://mysql/conf/restore.sh
@@ -66,22 +66,65 @@ restore_mysql_database_{{ database_name }}:
   - cwd: /root
   - require:
     - file: /root/mysql/scripts/restore_{{ database_name }}.sh
-
 {%- endif %}
 
 {%- endfor %}
 
 {%- for user in server.get('users', []) %}
-
-mysql_user_{{ user.name }}_{{ user.host }}:
+{%- for host in user.get('hosts', user.get('host', 'localhost'))|sequence %}
+{%- if not grains.get('noservices', False) %}
+mysql_user_{{ user.name }}_{{ host }}:
   mysql_user.present:
-  - host: '{{ user.host }}'
+  - host: '{{ host }}'
   - name: '{{ user.name }}'
-  {%- if user.password is defined %}
-  - password: {{ user.password }}
+  {%- if user['password_hash'] is defined %}
+  - password_hash: '{{ user.password_hash }}'
+  {%- elif user['password'] is defined and user['password'] != None %}
+  - password: '{{ user.password }}'
   {%- else %}
   - allow_passwordless: True
   {%- endif %}
+  - connection_user: {{ mysql_connection_args.user }}
+  - connection_pass: {{ mysql_connection_args.password }}
+  - connection_charset: {{ mysql_connection_args.charset }}
 
+{%- if 'grants' in user %}
+mysql_user_{{ user.name }}_{{ host }}_grants:
+  mysql_grants.present:
+    - name: {{ user.name }}
+    - grant: {{ user['grants']|sequence|join(",") }}
+    - database: user.get('database','*.*')
+    - grant_option: {{ user['grant_option'] | default(False) }}
+    - user: {{ user.name }}
+    - host: '{{ host }}'
+    - connection_user: {{ mysql_connection_args.user }}
+    - connection_pass: {{ mysql_connection_args.password }}
+    - connection_charset: {{ mysql_connection_args.charset }}
+    - require:
+      - mysql_user_{{ user.name }}_{{ host }}
+{%- endif %}
+
+{%- if 'databases' in user %}
+{%- for db in user['databases'] %}
+mysql_user_{{ user.name }}_{{ host }}_grants_db_{{ db.database }}_{{ loop.index0 }}:
+  mysql_grants.present:
+    - name: {{ user.name ~ '_' ~ db['database']  ~ '_' ~ db['table'] | default('all') }}
+    - grant: {{db['grants']|sequence|join(",")}}
+    - database: '{{ db['database'] }}.{{ db['table'] | default('*') }}'
+    - grant_option: {{ db['grant_option'] | default(False) }}
+    - user: {{ user.name }}
+    - host: '{{ host }}'
+    - connection_user: {{ mysql_connection_args.user }}
+    - connection_pass: {{ mysql_connection_args.password }}
+    - connection_charset: {{ mysql_connection_args.charset }}
+    - require:
+      - mysql_user_{{ user.name }}_{{ host }}
+      - mysql_database_{{ db.database }}
 {%- endfor %}
+{%- endif %}
+
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
+
 {%- endif %}
